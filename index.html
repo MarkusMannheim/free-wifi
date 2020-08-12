@@ -11,7 +11,7 @@
     </script>
     <!-- my stuff -->
     <meta charset="utf-8">
-    <title>Canberra roadkill</title>
+    <title>Canberra's free Wi-Fi'</title>
     <meta name="author" content="Markus Mannheim">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Initial scripts -->
@@ -24,98 +24,77 @@
   <body>
     <!-- Initial page layout -->
     <div id="map"></div>
-    <div id="ticker"></div>
     <script>
       // load data
-      d3.json("./resources/wildlife.geojson", function(error, data) {
+      d3.csv("./resources/wifi.csv", function(error, data) {
         if (error) throw error;
-        wildlifeData = data;
-        // date variables
-        days = d3.timeDay
-          .range(new Date("2015-12-04"), new Date("2019-05-31"))
-          .map(function(d) { return d3.timeFormat("%Y-%m-%d")(d); });
-        day = 0;
-        ticker = d3.select("#ticker");
-        ticker.text("Dec 2015");
+        // format data
+        wifiData = data
+          .map(function(d) {
+            return {
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [+d.lng, +d.lat]
+              }
+            }
+          });
         // set up MapBox engine
         mapboxgl.accessToken = "pk.eyJ1IjoibmV3cy1vbjFpbmUiLCJhIjoiR3FlZFZlVSJ9._30EFE9XYhQitqf4gzRG-g";
         map = new mapboxgl.Map({
           container: "map",
-          style: "mapbox://styles/mapbox/dark-v10",
-          center: [149.106944, -35.323056],
+          style: "mapbox://styles/mapbox/light-v10",
+          center: [149.126944, -35.293056],
           attributionControl: false,
-          zoom: document.body.getBoundingClientRect().width < 500 ? 9.75 : 10.25,
-          interactive: false
+          zoom: 11.5,
+          minZoom: 10,
+          maxZoom: 15,
+          pitchWithRotate: false,
+          dragRotate: false,
+          touchZoomRotate: false
         });
         // add navigation and custom attribution
         map.on("load", function() {
-          map.addControl(new mapboxgl.AttributionControl({
-              compact: true
+          map.addControl(new mapboxgl.NavigationControl({
+              showCompass: false
+            }))
+            .addControl(new mapboxgl.AttributionControl({
+              compact: true,
+              customAttribution: "<a href='https://www.cmtedd.act.gov.au/digital/cbrfree-public-wifi' target='_blank'>CMTEDD</a>"
             }))
             .resize();
-          let attribution = d3.select(".mapboxgl-ctrl-attrib-inner");
-          attribution.html("&copy; ACT Government <a href='https://creativecommons.org/licenses/by/4.0/'>(CC BY 4.0)</a> | " + attribution.html());
-          attribution.html(attribution.html().slice(0, -250));
           // svg layer
           container = map.getCanvasContainer();
           svg = d3.select(container)
             .append("svg")
-            .attr("id", "svg");
+              .attr("id", "svg");
           svgGroup = svg
             .append("g")
-            .attr("id", "svgGroup");
+              .attr("id", "svgGroup");
           // map calculations
           margin = { top: 16, bottom: 16, left: 16, right: 16 };
           projection = calcProjection();
           path = d3.geoPath()
-            .pointRadius(width < 500 ? 2.5 : 5);
+            .pointRadius(width < 500 ? 7.5 : 10);
+          // set up access poinst
+          wifi = svgGroup
+            .selectAll(".wifi")
+              .data(wifiData)
+            .enter().append("path")
+              .classed("wifi", true);
           // re-render SVGs upon movement
           map.on("viewreset", render)
             .on("move", render)
             .on("move", render);
           render();
-          d3.timeout(timer, 2000);
         });
       });
-
-      // begin animation
-      function timer() {
-        interval = d3.interval(function() {
-          ticker.text(d3.timeFormat("%b %Y")(d3.timeParse("%Y-%m-%d")(days[day])));
-          drawWildlife();
-          if (days[day] !== "2019-05-31") {
-            day++;
-          } else {
-            interval.stop();
-            day = 0;
-            d3.timeout(timer, 2000);
-          }
-        }, 25);
-      }
-
-      // wildlife circles
-      function drawWildlife() {
-        wildlife = svgGroup
-          .selectAll(".wildlife")
-            .data(wildlifeData.features.filter(function(d) { return d.properties.date == days[day]; }), function(d) { return d.geometry.coordinates[1] + " " + d.properties.date; });
-        entering = wildlife
-          .enter().append("path")
-            .classed("wildlife", true)
-            .style("opacity", 1)
-            .attr("d", path)
-            .transition()
-              .duration(2000)
-              .style("opacity", 0)
-            .remove();
-      }
 
       // re-renders SVG when map moves
       function render() {
         projection = calcProjection();
         path.projection(projection);
-        // draw SVGs
-        d3.selectAll(".wildlife")
-          .attr("d", path);
+        wifi.attr("d", path);
       }
       // recalculates D3 map projection when map moves
       function calcProjection() {
